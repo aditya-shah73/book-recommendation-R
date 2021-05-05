@@ -1,0 +1,368 @@
+> files = paste0("data/",list.files("data"))
+> ratings = read.csv(files[1], sep = ";")
+> books = read.csv(files[2], sep = ";")
+> users = read.csv(files[3], sep = ";")
+> library(dplyr)
+
+Attaching package: ‘dplyr’
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+> glimpse(books)
+Rows: 115,253
+Columns: 8
+$ ISBN                <chr> "0195153448", "0002005018", "0060973129", "0374157065", "0393045218", "0399135782", "0425176428", "0671870432",…
+$ Book.Title          <chr> "Classical Mythology", "Clara Callan", "Decision in Normandy", "Flu: The Story of the Great Influenza Pandemic …
+$ Book.Author         <chr> "Mark P. O. Morford", "Richard Bruce Wright", "Carlo D'Este", "Gina Bari Kolata", "E. J. W. Barber", "Amy Tan",…
+$ Year.Of.Publication <chr> "2002", "2001", "1991", "1999", "1999", "1991", "2000", "1993", "1996", "2002", "1988", "2000", "2004", "1999",…
+$ Publisher           <chr> "Oxford University Press", "HarperFlamingo Canada", "HarperPerennial", "Farrar Straus Giroux", "W. W. Norton &a…
+$ Image.URL.S         <chr> "http://images.amazon.com/images/P/0195153448.01.THUMBZZZ.jpg", "http://images.amazon.com/images/P/0002005018.0…
+$ Image.URL.M         <chr> "http://images.amazon.com/images/P/0195153448.01.MZZZZZZZ.jpg", "http://images.amazon.com/images/P/0002005018.0…
+$ Image.URL.L         <chr> "http://images.amazon.com/images/P/0195153448.01.LZZZZZZZ.jpg", "http://images.amazon.com/images/P/0002005018.0…
+> glimpse(users)
+Rows: 140,291
+Columns: 3
+$ User.ID  <chr> "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22",…
+$ Location <chr> "nyc, new york, usa", "stockton, california, usa", "moscow, yukon territory, russia", "porto, v.n.gaia, portugal", "farnbo…
+$ Age      <chr> "NULL", "18", "NULL", "17", "NULL", "61", "NULL", "NULL", "NULL", "26", "14", "NULL", "26", "NULL", "NULL", "NULL", "NULL"…
+> glimpse(ratings)
+Rows: 493,813
+Columns: 3
+$ User.ID     <int> 276725, 276726, 276727, 276729, 276729, 276733, 276736, 276737, 276744, 276745, 276746, 276746, 276746, 276746, 276746,…
+$ ISBN        <chr> "034545104X", "0155061224", "0446520802", "052165615X", "0521795028", "2080674722", "3257224281", "0600570967", "038550…
+$ Book.Rating <int> 0, 5, 0, 3, 6, 0, 8, 6, 7, 10, 0, 0, 0, 0, 0, 0, 9, 0, 0, 9, 8, 7, 0, 7, 6, 0, 0, 8, 8, 5, 10, 0, 0, 5, 0, 0, 0, 0, 0, …
+> set.seed(1234)
+> categories = c("Action and Adventure","Classic","Detective and Mystery","Fantasy")
+> books$category = sample( categories, nrow(books), replace=TRUE, prob=c(0.25, 0.3, 0.25, 0.20))
+> books$category = as.factor(books$category)
+> rm(categories)
+> books$ISBN = paste0("Isbn.",books$ISBN)
+> users$User.ID = paste0("User.",users$User.ID)
+> ratings$ISBN = paste0("Isbn.",ratings$ISBN)
+> ratings$User.ID = paste0("User.",ratings$User.ID)
+> library(ggplot2)
+> ratings %>%
++ group_by(Book.Rating) %>%
++ summarize(cases = n()) %>%
++ ggplot(aes(Book.Rating, cases)) + geom_col() +
++ theme_minimal() + scale_x_continuous(breaks = 0:10)
+
+> 
+> ratings = ratings[ratings$Book.Rating!= 0, ]
+> ratings %>%
++ group_by(Book.Rating) %>%
++ summarize(cases = n()) %>%
++ ggplot(aes(Book.Rating, cases)) + geom_col() +
++ theme_minimal() + scale_x_continuous(breaks = 0:10)
+> ratings_sum = ratings %>%
++ group_by(User.ID) %>%
++ count()
+
+> summary(ratings_sum$n)
+
+##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+##    1.000    1.000    1.000    5.319    3.000 1906.000
+
+> user_index = ratings_sum$User.ID[ratings_sum$n>4]
+
+> users = users[users$User.ID %in% user_index, ]
+> ratings = ratings[ratings$User.ID %in% user_index, ]
+> books = books[books$ISBN %in% ratings$ISBN,]
+>
+> library(cluster)
+
+> books_distance = books[,c("ISBN","Book.Author","Publisher")] 
+> dissimilarity = daisy(books_distance, metric = "gower")
+
+> library(dplyr)
+
+> book_feature = books[1:10000,c("Book.Author","Publisher","category")] 
+
+> dissimilarity = daisy(book_feature, metric = "gower", weights = c(2,0.5,1))
+> dissimilarity = as.matrix(dissimilarity)
+
+> row.names(dissimilarity)<-  books$ISBN[1:10000]
+> colnames(dissimilarity)<- books$ISBN[1:10000]
+
+> dissimilarity[15:20,15:20]
+
+##                 Isbn.0971880107 Isbn.0345402871 Isbn.0345417623 Isbn.0684823802
+## Isbn.0971880107       0.0000000       1.0000000       1.0000000       1.0000000
+## Isbn.0345402871       1.0000000       0.0000000       0.5714286       1.0000000
+## Isbn.0345417623       1.0000000       0.5714286       0.0000000       1.0000000
+## Isbn.0684823802       1.0000000       1.0000000       1.0000000       0.0000000
+## Isbn.0375759778       0.7142857       1.0000000       1.0000000       1.0000000
+## Isbn.0375406328       1.0000000       1.0000000       1.0000000       0.7142857
+##                 Isbn.0375759778 Isbn.0375406328
+## Isbn.0971880107       0.7142857       1.0000000
+## Isbn.0345402871       1.0000000       1.0000000
+## Isbn.0345417623       1.0000000       1.0000000
+## Isbn.0684823802       1.0000000       0.7142857
+## Isbn.0375759778       0.0000000       1.0000000
+## Isbn.0375406328       1.0000000       0.0000000
+
+> user_id = "User.1167"
+
+> user_books = ratings %>%
++ filter(User.ID == user_id & ISBN %in% books$ISBN[1:10000]) %>%
++ arrange(desc(Book.Rating))
+
+> head(user_books,10)
+
+      User.ID <chr>       ISBN<chr>Book.   Rating<int>
+1	User.1167	Isbn.0060929596	10
+2	User.1167	Isbn.0802135196	9
+3	User.1167	Isbn.0440224675	8
+4	User.1167	Isbn.0679450548	7
+5	User.1167	Isbn.0743230213	7
+6	User.1167	Isbn.0373834985	5
+7	User.1167	Isbn.038533656X	5
+8	User.1167	Isbn.0440217520	5
+
+> library(tidyr)
+
+> books$ISBN = as.character(books$ISBN)
+> selected_books = user_books[ ,c("ISBN", "Book.Rating")]
+
+> recomendar = function(selected_books, dissimilarity_matrix, 
+                      books, n_recommendations = 5){
+
+>  selected_book_indexes = which(colnames(dissimilarity_matrix) %in% selected_books$ISBN)
+
+
+>  results = data.frame(dissimilarity_matrix[, selected_book_indexes], 
+                       recommended_book = row.names(dissimilarity_matrix),
+                       stringsAsFactors = FALSE) 
+
+
+>  recomendaciones = results %>%
++   pivot_longer(cols = c(-"recommended_book") , names_to = "readed_book", 
+                 values_to = "dissimilarity") %>%+
++      left_join(selected_books, by = c("recommended_book" = "ISBN"))%>%
++    arrange(desc(dissimilarity)) %>%
++    filter(recommended_book != readed_book) %>%
++    filter(!is.na(Book.Rating) ) %>%
++    mutate(
+      similarity = 1 - dissimilarity,
+      weighted_score = similarity * Book.Rating) %>%
++    arrange(desc(weighted_score)) %>%
++    filter(weighted_score>0) %>%
++   group_by(recommended_book) %>% slice(1) %>%
++   top_n(n_recommendations, weighted_score)  %>%
++   left_join(books, by = c("recommended_book" = "ISBN"))
+
++  return(recomendaciones)
+>}
+
++ recomendaciones = recomendar(selected_books, dissimilarity, books)
++ recomendaciones
+
+recommended_book<chr>readed_book<chr>dissimilarity<dbl>Book.Rating<int>similarity<dbl>
+Isbn.0060929596	Isbn.0743230213	0.7142857	10	0.2857143	
+Isbn.0373834985	Isbn.038533656X	0.7142857	5	0.2857143	
+Isbn.038533656X	Isbn.0373834985	0.7142857	5	0.2857143	
+Isbn.0440217520	Isbn.0743230213	0.7142857	5	0.2857143	
+Isbn.0440224675	Isbn.0802135196	0.7142857	8	0.2857143	
+Isbn.0679450548	Isbn.038533656X	0.7142857	7	0.2857143	
+Isbn.0743230213	Isbn.0440217520	0.7142857	7	0.2857143	
+Isbn.0802135196	Isbn.0440224675	0.7142857	9	0.2857143	
+
+> user_item = ratings %>%
++  top_n(10000) %>%
++  pivot_wider(names_from = ISBN,values_from = Book.Rating) %>%
++  as.data.frame()
+
+> row.names(user_item) = user_item$User.ID
+> user_item$User.ID = NULL
+
+> user_item = as.matrix(user_item)
+
+> user_item[1:5,1:5]
+
+##             Isbn.0060096195 Isbn.0142302198 Isbn.038076041X Isbn.0699854289
+## User.276822              10              10              10              10
+## User.276847              NA              NA              NA              NA
+## User.276859              NA              NA              NA              NA
+## User.276861              NA              NA              NA              NA
+## User.276872              NA              NA              NA              NA
+##             Isbn.0786817070
+## User.276822              10
+## User.276847              NA
+## User.276859              NA
+## User.276861              NA
+## User.276872              NA
+
+> sum(is.na(user_item)) /  ( ncol(user_item) * nrow(user_item) )
+
+## [1] 0.9996276
+
+> cos_similarity = function(A,B){
+>  num = sum(A *B, na.rm = T)
+>  den = sqrt(sum(A^2, na.rm = T)) * sqrt(sum(B^2, na.rm = T)) 
+>  result = num/den
+
+>  return(result)
+> }
+
+
+>item_recommendation = function(book_id, rating_matrix = user_item, n_recommendations = 5){
+
+>  book_index = which(colnames(rating_matrix) == book_id)
+
+>  similarity = apply(rating_matrix, 2, FUN = function(y) 
+                      cos_similarity(rating_matrix[,book_index], y))
+
+>  recommendations = tibble(ISBN = names(similarity), 
+                               similarity = similarity) %>%
+>    filter(ISBN != book_id) %>% 
+>    top_n(n_recommendations, similarity) %>%
+>    arrange(desc(similarity)) 
+
+>  return(recommendations)
+
+> }
+
+> recom_cf_item = item_recommendation("Isbn.0446677450")
+> recom_cf_item
+
+
+ISBN<chr>       similarity<dbl>
+Isbn.0671621009	0.3333333
+Isbn.006000438X	0.3333333
+Isbn.0060517794	0.3333333
+Isbn.006093090X	0.3333333
+Isbn.0060956291	0.3333333
+Isbn.0060984333	0.3333333
+Isbn.006251184X	0.3333333
+Isbn.0064401774	0.3333333
+Isbn.0066209463	0.3333333
+Isbn.0140244824	0.3333333
+Isbn.0231121008	0.3333333
+Isbn.0312187343	0.3333333
+Isbn.0312243111	0.3333333
+Isbn.0316169226	0.3333333
+Isbn.0316691178	0.3333333
+Isbn.0345424719	0.3333333
+Isbn.0375406530	0.3333333
+Isbn.0375412557	0.3333333
+Isbn.037570504X	0.3333333
+Isbn.0385317042	0.3333333
+Isbn.038533334X	0.3333333
+Isbn.0393029603	0.3333333
+Isbn.0393956539	0.3333333
+Isbn.0394563158	0.3333333
+Isbn.0425184757	0.3333333
+Isbn.0452280699	0.3333333
+Isbn.0520222571	0.3333333
+Isbn.0670887315	0.3333333
+Isbn.0671748092	0.3333333
+Isbn.0679411267	0.3333333
+Isbn.068480087X	0.3333333
+Isbn.068484270X	0.3333333
+Isbn.0688176992	0.3333333
+Isbn.0743227840	0.3333333
+Isbn.0914913360	0.3333333
+Isbn.1559704640	0.3333333
+Isbn.1565122968	0.3333333
+Isbn.1571310169	0.3333333
+Isbn.1571740562	0.3333333
+Isbn.B00007D03N	0.3333333
+Isbn.0152001182	0.3333333
+Isbn.0307119491	0.3333333
+Isbn.0316707414	0.3333333
+Isbn.0345253434	0.3333333
+Isbn.0394825942	0.3333333
+Isbn.0451458818	0.3333333
+Isbn.0739301985	0.3333333
+Isbn.0809239973	0.3333333
+Isbn.0886774802	0.3333333
+Isbn.0886775981	0.3333333
+Isbn.159052201X	0.3333333
+Isbn.0446697524	0.3333333
+Isbn.0451205367	0.3333333
+Isbn.0451452615	0.3333333
+Isbn.0618343997	0.3333333
+Isbn.0316516007	0.3333333
+Isbn.0446522740	0.3333333
+Isbn.0446523089	0.3333333
+Isbn.0590846280	0.3333333
+Isbn.0609804898	0.3333333
+Isbn.0679462945	0.3333333
+Isbn.0696019132	0.3333333
+Isbn.0696019892	0.3333333
+Isbn.0737006005	0.3333333
+Isbn.074346303X	0.3333333
+Isbn.0785307907	0.3333333
+Isbn.080692277X	0.3333333
+Isbn.0809463091	0.3333333
+Isbn.080946313X	0.3333333
+Isbn.0809463172	0.3333333
+
+>user_recommendation = function(user_id, user_item_matrix = user_item,
+                               ratings_matrix = ratings,
+                               n_recommendations = 5,
+                               threshold = 1,
+                               nearest_neighbors = 10){
+
+>  user_index = which(rownames(user_item_matrix) == user_id)
+
+>  similarity = apply(user_item_matrix, 1, FUN = function(y) 
+                      cos_similarity(user_item_matrix[user_index,], y))
+
+>  similar_users = tibble(User.ID = names(similarity), 
+                               similarity = similarity) %>%
+    filter(User.ID != user_id) %>% 
+    arrange(desc(similarity)) %>%
+    top_n(nearest_neighbors, similarity)
+
+
+>  readed_books_user = ratings_matrix$ISBN[ratings_matrix$User.ID == user_id]
+
+>  recommendations = ratings_matrix %>%
++    filter(
+      User.ID %in% similar_users$User.ID &
+      !(ISBN %in% readed_books_user)) %>%
++    group_by(ISBN) %>%
++    summarise(
+      count = n(),
+      Book.Rating = mean(Book.Rating)
+    ) %>%
+>    filter(count > threshold) %>%
++   arrange(desc(Book.Rating), desc(count)) %>%
++   head(n_recommendations)
+
+>  return(recommendations)
+
+> }
+
+> recom_cf_user = user_recommendation("User.99", n_recommendations = 20)
+> recom_cf_user
+
+ISBN<chr>.      count<int> Book.Rating<dbl>
+Isbn.0439425220	12	10
+Isbn.0836213319	9	10
+Isbn.0618002235	8	10
+Isbn.0394800133	6	10
+Isbn.0152023984	5	10
+Isbn.0451456734	5	10
+Isbn.089471838X	5	10
+Isbn.0044409494	4	10
+Isbn.014016930X	4	10
+Isbn.0385324138	4	10
+Isbn.0393307050	4	10
+Isbn.0395977894	4	10
+Isbn.0505523302	4	10
+Isbn.0505523892	4	10
+Isbn.0679432477	4	10
+Isbn.0789254484	4	10
+Isbn.0805421351	4	10
+Isbn.0873523792	4	10
+Isbn.1566400201	4	10
+Isbn.1567184464	4	10
+
